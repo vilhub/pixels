@@ -19,7 +19,7 @@ struct World {
 fn main() -> Result<(), Error> {
     env_logger::init();
     let mut window = Window::new(
-        "Hello minifb",
+        "Hello Pixels",
         WIDTH as usize,
         HEIGHT as usize,
         WindowOptions::default(),
