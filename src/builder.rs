@@ -1,6 +1,6 @@
 use crate::renderers::{ScalingMatrix, ScalingRenderer};
 use crate::SurfaceSize;
-use crate::{Error, Pixels, PixelsContext, SurfaceTexture};
+use crate::{Error, Pixels, PixelsContext, SurfaceTexture, TextureError};
 use raw_window_handle::HasRawWindowHandle;
 
 /// A builder to help create customized pixel buffers.
@@ -276,7 +276,7 @@ impl<'req, 'dev, 'win, W: HasRawWindowHandle> PixelsBuilder<'req, 'dev, 'win, W>
                 &surface_size,
                 render_texture_format,
                 clear_color,
-            );
+            )?;
 
         // Create the pixel buffer
         let mut pixels = Vec::with_capacity(pixels_buffer_size);
@@ -347,6 +347,28 @@ impl<'req, 'dev, 'win, W: HasRawWindowHandle> PixelsBuilder<'req, 'dev, 'win, W>
     }
 }
 
+/// Compare the given size to the limits defined by `device`.
+///
+/// # Errors
+///
+/// - [`TextureError::TextureWidth`] when `width` is 0 or greater than GPU texture limits.
+/// - [`TextureError::TextureHeight`] when `height` is 0 or greater than GPU texture limits.
+pub fn check_texture_size(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> Result<(), TextureError> {
+    let limits = device.limits();
+    if width == 0 || width > limits.max_texture_dimension_2d {
+        return Err(TextureError::TextureWidth(width));
+    }
+    if height == 0 || height > limits.max_texture_dimension_2d {
+        return Err(TextureError::TextureHeight(height));
+    }
+
+    Ok(())
+}
+
 pub(crate) fn create_backing_texture(
     device: &wgpu::Device,
     width: u32,
@@ -355,13 +377,18 @@ pub(crate) fn create_backing_texture(
     surface_size: &SurfaceSize,
     render_texture_format: wgpu::TextureFormat,
     clear_color: wgpu::Color,
-) -> (
-    ultraviolet::Mat4,
-    wgpu::Extent3d,
-    wgpu::Texture,
-    ScalingRenderer,
-    usize,
-) {
+) -> Result<
+    (
+        ultraviolet::Mat4,
+        wgpu::Extent3d,
+        wgpu::Texture,
+        ScalingRenderer,
+        usize,
+    ),
+    TextureError,
+> {
+    let _ = check_texture_size(device, width, height)?;
+
     let scaling_matrix_inverse = ScalingMatrix::new(
         (width as f32, height as f32),
         (surface_size.width as f32, surface_size.height as f32),
@@ -398,13 +425,13 @@ pub(crate) fn create_backing_texture(
     let texture_format_size = get_texture_format_size(backing_texture_format);
     let pixels_buffer_size = ((width * height) as f32 * texture_format_size) as usize;
 
-    (
+    Ok((
         scaling_matrix_inverse,
         texture_extent,
         texture,
         scaling_renderer,
         pixels_buffer_size,
-    )
+    ))
 }
 
 #[rustfmt::skip]

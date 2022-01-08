@@ -103,12 +103,20 @@ fn main() -> Result<(), Error> {
             if let Some(size) = input.window_resized() {
                 if size.width > 0 && size.height > 0 {
                     // Resize the surface texture
-                    pixels.resize_surface(size.width, size.height);
+                    if let Err(e) = pixels.resize_surface(size.width, size.height) {
+                        error!("pixels.resize_surface() failed: {}", e);
+                        *control_flow = ControlFlow::Exit;
+                        return;
+                    }
 
                     // Resize the world
                     let LogicalSize { width, height } = size.to_logical(scale_factor);
                     world.resize(width, height);
-                    pixels.resize_buffer(width, height);
+                    if let Err(e) = pixels.resize_buffer(width, height) {
+                        error!("pixels.resize_buffer() failed: {}", e);
+                        *control_flow = ControlFlow::Exit;
+                        return;
+                    }
                 }
             }
 

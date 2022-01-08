@@ -131,7 +131,11 @@ async fn run() {
 
             // Resize the window
             if let Some(size) = input.window_resized() {
-                pixels.resize_surface(size.width, size.height);
+                if let Err(e) = pixels.resize_surface(size.width, size.height) {
+                    error!("pixels.resize_surface() failed: {}", e);
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
             }
 
             // Update internal state and request a redraw

@@ -2,9 +2,10 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use fltk::{app, enums::Event, prelude::*, window::Window};
+use fltk::{app, prelude::*, window::Window};
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
+use std::{cell::RefCell, rc::Rc};
 
 const WIDTH: u32 = 600;
 const HEIGHT: u32 = 400;
@@ -26,38 +27,43 @@ fn main() -> Result<(), Error> {
     let mut win = Window::default()
         .with_size(WIDTH as i32, HEIGHT as i32)
         .with_label("Hello Pixels");
+    win.make_resizable(true);
     win.end();
     win.show();
 
-    let mut pixels = {
+    let pixels = {
         let pixel_width = win.pixel_w() as u32;
         let pixel_height = win.pixel_h() as u32;
         let surface_texture = SurfaceTexture::new(pixel_width, pixel_height, &win);
-        Pixels::new(WIDTH, HEIGHT, surface_texture)?
+
+        Rc::new(RefCell::new(Pixels::new(WIDTH, HEIGHT, surface_texture)?))
     };
 
     let mut world = World::new();
 
-    while app.wait() {
-        // Handle window events
-        if app::event() == Event::Resize {
-            let pixel_width = win.pixel_w() as u32;
-            let pixel_height = win.pixel_h() as u32;
-            pixels.resize_surface(pixel_width, pixel_height);
+    // Handle resize events
+    let pixels_resizer = pixels.clone();
+    win.resize_callback(move |_win, _x, _y, width, height| {
+        if let Err(e) = pixels_resizer
+            .borrow_mut()
+            .resize_surface(width as u32, height as u32)
+        {
+            error!("pixels.resize_surface() failed: {}", e);
+            app.quit();
         }
+    });
 
+    while app.wait() {
         // Update internal state
         world.update();
 
         // Draw the current frame
-        world.draw(pixels.get_frame());
-        if pixels
-            .render()
-            .map_err(|e| error!("pixels.render() failed: {}", e))
-            .is_err()
-        {
+        world.draw(pixels.borrow_mut().get_frame());
+        pixels.borrow().render().map_err(|e| {
+            error!("pixels.render() failed: {}", e);
             app.quit();
-        }
+            e
+        })?;
 
         app::flush();
         app::awake();

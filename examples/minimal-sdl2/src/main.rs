@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         zstr!("Hello Pixels"),
         None,
         (WIDTH as i32, HEIGHT as i32),
-        WindowFlags::ALLOW_HIGHDPI,
+        WindowFlags::ALLOW_HIGHDPI | WindowFlags::RESIZABLE,
     )?;
 
     let mut pixels = {
@@ -47,11 +47,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Close events
                 Event::Quit { .. } => break 'game_loop,
                 Event::Keyboard { keycode: key, .. } if key == keycode::SDLK_ESCAPE => {
-                    break 'game_loop
+                    break 'game_loop;
                 }
 
                 // Resize the window
-                Event::WindowResized { width, height, .. } => pixels.resize_surface(width, height),
+                Event::WindowResized { width, height, .. } => {
+                    pixels.resize_surface(width, height)?;
+                }
 
                 _ => (),
             }
