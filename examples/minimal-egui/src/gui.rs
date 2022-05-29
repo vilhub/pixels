@@ -1,5 +1,5 @@
-use egui::{ClippedMesh, Context, TexturesDelta};
-use egui_wgpu_backend::{BackendError, RenderPass, ScreenDescriptor};
+use egui::{ClippedMesh, Context, TextureId, TexturesDelta, Vec2};
+use egui_wgpu_backend::{BackendError, RenderPass, ScreenDescriptor, wgpu::TextureViewDescriptor};
 use pixels::{wgpu, PixelsContext};
 use winit::window::Window;
 
@@ -21,6 +21,8 @@ pub(crate) struct Framework {
 struct Gui {
     /// Only show the egui window when true.
     window_open: bool,
+    texture_id: TextureId,
+    texture_size: Vec2,
 }
 
 impl Framework {
@@ -35,9 +37,12 @@ impl Framework {
             physical_height: height,
             scale_factor,
         };
-        let rpass = RenderPass::new(pixels.device(), pixels.render_texture_format(), 1);
+        let mut rpass = RenderPass::new(pixels.device(), pixels.render_texture_format(), 1);
         let textures = TexturesDelta::default();
-        let gui = Gui::new();
+        let texture = pixels.texture();
+        let texture_view = texture.create_view(&TextureViewDescriptor::default());
+        let egui_texture = RenderPass::egui_texture_from_wgpu_texture(&mut rpass, pixels.device(), &texture_view, wgpu::FilterMode::Nearest);
+        let gui = Gui::new(egui_texture, Vec2 { x: width as f32 / scale_factor, y: height as f32 / scale_factor });
 
         Self {
             egui_ctx,
@@ -117,8 +122,12 @@ impl Framework {
 
 impl Gui {
     /// Create a `Gui`.
-    fn new() -> Self {
-        Self { window_open: true }
+    fn new(texture_id: TextureId, texture_size: Vec2) -> Self {
+        Self {
+            window_open: true,
+            texture_id: texture_id,
+            texture_size: texture_size,
+        }
     }
 
     /// Create the UI using egui.
@@ -132,6 +141,10 @@ impl Gui {
                     }
                 })
             });
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.image(self.texture_id, self.texture_size);
         });
 
         egui::Window::new("Hello, egui!")

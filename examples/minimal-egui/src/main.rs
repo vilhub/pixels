@@ -90,9 +90,6 @@ fn main() -> Result<(), Error> {
 
                 // Render everything together
                 let render_result = pixels.render_with(|encoder, render_target, context| {
-                    // Render the world texture
-                    context.scaling_renderer.render(encoder, render_target);
-
                     // Render egui
                     framework.render(encoder, render_target, context)?;
 
