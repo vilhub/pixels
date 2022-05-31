@@ -3,7 +3,7 @@ use egui_wgpu_backend::{wgpu::TextureViewDescriptor, BackendError, RenderPass, S
 use pixels::{wgpu, PixelsContext};
 use winit::window::Window;
 
-use crate::{WIDTH, HEIGHT};
+use crate::{HEIGHT, WIDTH};
 
 /// Manages all state required for rendering egui over `Pixels`.
 pub(crate) struct Framework {
@@ -25,6 +25,7 @@ struct Gui {
     window_open: bool,
     texture_id: TextureId,
     texture_size: Vec2,
+    slider_value: f32,
 }
 
 impl Framework {
@@ -90,17 +91,17 @@ impl Framework {
     pub(crate) fn prepare(&mut self, window: &Window) -> f32 {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
-        let mut menubar_height: f32 = 0.;
+        let mut menubar_width: f32 = 0.;
         let output = self.egui_ctx.run(raw_input, |egui_ctx| {
             // Draw the demo application.
-            menubar_height = self.gui.ui(egui_ctx);
+            menubar_width = self.gui.ui(egui_ctx);
         });
 
         self.textures.append(output.textures_delta);
         self.egui_state
             .handle_platform_output(window, &self.egui_ctx, output.platform_output);
         self.paint_jobs = self.egui_ctx.tessellate(output.shapes);
-        menubar_height
+        menubar_width
     }
 
     /// Render egui.
@@ -142,22 +143,16 @@ impl Gui {
             window_open: true,
             texture_id: texture_id,
             texture_size: texture_size,
+            slider_value: 0.
         }
     }
 
     /// Create the UI using egui.
     fn ui(&mut self, ctx: &Context) -> f32 {
-        let inner_response = egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("About...").clicked() {
-                        self.window_open = true;
-                        ui.close_menu();
-                    }
-                })
-            });
+        let inner_response = egui::SidePanel::left("menubar_container").show(ctx, |ui| {
+            ui.add(egui::Slider::new(&mut self.slider_value, 0.0..=100.0));
         });
-        let menubar_height = inner_response.response.rect.height();
+        let menubar_width = inner_response.response.rect.width();
 
         let frame = egui::Frame {
             fill: ctx.style().visuals.window_fill(),
@@ -181,6 +176,6 @@ impl Gui {
                     ui.hyperlink("https://docs.rs/egui");
                 });
             });
-        menubar_height
+        menubar_width
     }
 }
