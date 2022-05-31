@@ -1,7 +1,9 @@
 use egui::{ClippedMesh, Context, TextureId, TexturesDelta, Vec2};
-use egui_wgpu_backend::{BackendError, RenderPass, ScreenDescriptor, wgpu::TextureViewDescriptor};
+use egui_wgpu_backend::{wgpu::TextureViewDescriptor, BackendError, RenderPass, ScreenDescriptor};
 use pixels::{wgpu, PixelsContext};
 use winit::window::Window;
+
+use crate::{WIDTH, HEIGHT};
 
 /// Manages all state required for rendering egui over `Pixels`.
 pub(crate) struct Framework {
@@ -41,8 +43,19 @@ impl Framework {
         let textures = TexturesDelta::default();
         let texture = pixels.texture();
         let texture_view = texture.create_view(&TextureViewDescriptor::default());
-        let egui_texture = RenderPass::egui_texture_from_wgpu_texture(&mut rpass, pixels.device(), &texture_view, wgpu::FilterMode::Nearest);
-        let gui = Gui::new(egui_texture, Vec2 { x: width as f32 / scale_factor, y: height as f32 / scale_factor });
+        let egui_texture = RenderPass::egui_texture_from_wgpu_texture(
+            &mut rpass,
+            pixels.device(),
+            &texture_view,
+            wgpu::FilterMode::Nearest,
+        );
+        let gui = Gui::new(
+            egui_texture,
+            Vec2 {
+                x: WIDTH as f32,
+                y: HEIGHT as f32,
+            },
+        );
 
         Self {
             egui_ctx,
@@ -74,18 +87,20 @@ impl Framework {
     }
 
     /// Prepare egui.
-    pub(crate) fn prepare(&mut self, window: &Window) {
+    pub(crate) fn prepare(&mut self, window: &Window) -> f32 {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
+        let mut menubar_height: f32 = 0.;
         let output = self.egui_ctx.run(raw_input, |egui_ctx| {
             // Draw the demo application.
-            self.gui.ui(egui_ctx);
+            menubar_height = self.gui.ui(egui_ctx);
         });
 
         self.textures.append(output.textures_delta);
         self.egui_state
             .handle_platform_output(window, &self.egui_ctx, output.platform_output);
         self.paint_jobs = self.egui_ctx.tessellate(output.shapes);
+        menubar_height
     }
 
     /// Render egui.
@@ -131,8 +146,8 @@ impl Gui {
     }
 
     /// Create the UI using egui.
-    fn ui(&mut self, ctx: &Context) {
-        egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
+    fn ui(&mut self, ctx: &Context) -> f32 {
+        let inner_response = egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("About...").clicked() {
@@ -142,8 +157,13 @@ impl Gui {
                 })
             });
         });
+        let menubar_height = inner_response.response.rect.height();
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        let frame = egui::Frame {
+            fill: ctx.style().visuals.window_fill(),
+            ..egui::Frame::default()
+        };
+        egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             ui.image(self.texture_id, self.texture_size);
         });
 
@@ -161,5 +181,6 @@ impl Gui {
                     ui.hyperlink("https://docs.rs/egui");
                 });
             });
+        menubar_height
     }
 }
